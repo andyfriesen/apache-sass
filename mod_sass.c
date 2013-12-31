@@ -10,7 +10,7 @@
 #include "sass_interface.h"
 
 typedef struct _Config {
-    char include_path[1024];
+    char* include_path;
 } Config;
 
 Config config;
@@ -43,7 +43,6 @@ static int sass_handler(request_rec* r) {
         return DECLINED;
     }
 
-
     struct sass_file_context* ctx = sass_new_file_context();
     ctx->input_path = r->filename;
     ctx->options.output_style = SASS_STYLE_EXPANDED;
@@ -55,16 +54,12 @@ static int sass_handler(request_rec* r) {
 
     if (ctx->error_status) {
         ap_set_content_type(r, "text/plain");
-        config.include_path[1023] = 0;
-        ap_rprintf(r, "Hurrdurr %s\n", config.include_path);
-
         ap_rprintf(r, "%s\n", ctx->error_message);
         return OK;
     }
 
 
     ap_set_content_type(r, "text/css");
-    //ap_log_error(__FILE__, __LINE__, 0, 0, 0, 0, "SNTHSNTH");
     ap_rprintf(r, "%s", ctx->output_string);
 
     sass_free_file_context(ctx);
@@ -75,12 +70,12 @@ static int sass_handler(request_rec* r) {
 }
 
 static void register_hooks(apr_pool_t* pool) {
-    config.include_path[0] = 0;
+    getPool();
     ap_hook_handler(sass_handler, 0, 0, APR_HOOK_LAST);
 }
 
 static const char* set_include_path(cmd_parms* cmd, void* cfg, const char* arg) {
-    strcpy((char*)config.include_path, (char*)arg);
+    config.include_path = apr_pstrdup(pool, arg);
     return NULL;
 }
 
