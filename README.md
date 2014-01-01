@@ -17,7 +17,7 @@ SassIncludePaths /foo/bar:/baz/qux
 This is a bit rickety right now.
 
 1. Get the apache dev headers.  On ubuntu, the package is either apache2-prefork-dev or apache2-threaded-dev.  I'm not sure which.
-2. Build libsass in a directory that's a sibling to the directory holding this project.
+2. Build [libsass](https://github.com/hcatlin/libsass) in a directory that's a sibling to the directory holding this project.
 3. To compile and install the plugin, run `sudo ./build.sh`.  The build system is very simple, so you shouldn't have any trouble peeling it apart if you have customized needs.
 
 # Configuration
