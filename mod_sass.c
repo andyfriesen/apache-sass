@@ -21,6 +21,7 @@ apr_pool_t* getPool() {
     if (pool == NULL) {
         apr_pool_create(&pool, NULL);
     }
+    return pool;
 }
 
 void clearPool() {
@@ -28,6 +29,15 @@ void clearPool() {
         apr_pool_destroy(pool);
         pool = NULL;
     }
+}
+
+int exists(const char* filename) {
+    FILE* f;
+    if (f = fopen(filename, "r")) {
+        fclose(f);
+        return 1;
+    }
+    return 0;
 }
 
 static int sass_handler(request_rec* r) {
@@ -39,12 +49,31 @@ static int sass_handler(request_rec* r) {
         return HTTP_METHOD_NOT_ALLOWED;
     }
 
-    if (APR_NOFILE == r->finfo.filetype) {
-        return DECLINED;
+    size_t len = strlen(r->filename);
+    char* filename = apr_palloc(getPool(), len + 1);
+    strcpy(filename, r->filename);
+    filename[len] = 0;
+
+    if (len > 4) {
+        const char* last4 = r->filename + len - 4;
+
+        if (0 == apr_strnatcasecmp(".css", last4)) {
+            strcpy(filename + len - 4, ".scss\0");
+
+            if (!exists(filename)) {
+                // Requested a .css file which has no corresponding .scss
+                // The request will either produce the css file itself it exists, else 404.
+                ap_set_content_type(r, "text/plain");
+                ap_rprintf(r, "aeuaoeuaoe\n");
+                return OK;
+
+                return DECLINED;
+            }
+        }
     }
 
     struct sass_file_context* ctx = sass_new_file_context();
-    ctx->input_path = r->filename;
+    ctx->input_path = filename;
     ctx->options.output_style = SASS_STYLE_EXPANDED;
     ctx->options.source_comments = SASS_SOURCE_COMMENTS_DEFAULT;
     ctx->options.include_paths = config.include_path;
@@ -70,12 +99,11 @@ static int sass_handler(request_rec* r) {
 }
 
 static void register_hooks(apr_pool_t* pool) {
-    getPool();
     ap_hook_handler(sass_handler, 0, 0, APR_HOOK_LAST);
 }
 
 static const char* set_include_path(cmd_parms* cmd, void* cfg, const char* arg) {
-    config.include_path = apr_pstrdup(pool, arg);
+    config.include_path = apr_pstrdup(getPool(), arg);
     return NULL;
 }
 
