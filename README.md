@@ -9,7 +9,7 @@ In your httpd.conf:
 LoadModule /path/to/mod_sass.so
 AddHandler sass .scss
 AddHandler sass .css
-IncludePath /foo/bar:/baz/qux
+SassIncludePaths /foo/bar:/baz/qux
 ```
 
 # How to compile
@@ -34,8 +34,8 @@ If you want Apache to compile .scss files when someone requests a nonexistent .c
 AddHandler sass .css
 ```
 
-To customize the include path the sass compiler uses, use the `IncludePath` directive.  Paths are separated by colons:
+To customize the include path the sass compiler uses, use the `SassIncludePaths` directive.  Paths are separated by colons:
 
 ```
-IncludePath /foo/bar:/baz/qux
+SassIncludePaths /foo/bar:/baz/qux
 ```

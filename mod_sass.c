@@ -63,10 +63,6 @@ static int sass_handler(request_rec* r) {
             if (!exists(filename)) {
                 // Requested a .css file which has no corresponding .scss
                 // The request will either produce the css file itself it exists, else 404.
-                ap_set_content_type(r, "text/plain");
-                ap_rprintf(r, "aeuaoeuaoe\n");
-                return OK;
-
                 return DECLINED;
             }
         }
@@ -108,7 +104,7 @@ static const char* set_include_path(cmd_parms* cmd, void* cfg, const char* arg) 
 }
 
 static const command_rec command_recs[] = {
-    AP_INIT_TAKE1("includePaths", set_include_path, NULL, RSRC_CONF, "SCSS include paths"),
+    AP_INIT_TAKE1("sassIncludePaths", set_include_path, NULL, RSRC_CONF, "SCSS include paths"),
     {NULL}
 };
 
