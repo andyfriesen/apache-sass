@@ -9,11 +9,11 @@
 
 #include "sass_interface.h"
 
+module AP_MODULE_DECLARE_DATA sass_module;
+
 typedef struct _Config {
     char* include_path;
 } Config;
-
-Config config;
 
 apr_pool_t* pool = NULL;
 
@@ -49,6 +49,8 @@ static int sass_handler(request_rec* r) {
         return HTTP_METHOD_NOT_ALLOWED;
     }
 
+    Config* config = ap_get_module_config(r->per_dir_config, &sass_module);
+
     size_t len = strlen(r->filename);
     char* filename = apr_palloc(getPool(), len + 1);
     strcpy(filename, r->filename);
@@ -72,8 +74,10 @@ static int sass_handler(request_rec* r) {
     ctx->input_path = filename;
     ctx->options.output_style = SASS_STYLE_EXPANDED;
     ctx->options.source_comments = SASS_SOURCE_COMMENTS_DEFAULT;
-    ctx->options.include_paths = config.include_path;
+    ctx->options.include_paths = apr_pstrdup(getPool(), config->include_path);
     ctx->options.image_path = ".";
+
+    ap_rprintf(r, "path: %s\n", config->include_path);
 
     sass_compile_file(ctx);
 
@@ -98,20 +102,35 @@ static void register_hooks(apr_pool_t* pool) {
     ap_hook_handler(sass_handler, 0, 0, APR_HOOK_LAST);
 }
 
-static const char* set_include_path(cmd_parms* cmd, void* cfg, const char* arg) {
-    config.include_path = apr_pstrdup(getPool(), arg);
-    return NULL;
-}
-
 static const command_rec command_recs[] = {
-    AP_INIT_TAKE1("sassIncludePaths", set_include_path, NULL, RSRC_CONF, "SCSS include paths"),
+    AP_INIT_TAKE1(
+        "sassIncludePaths",
+        ap_set_string_slot,
+        (void*)APR_OFFSETOF(Config, include_path),
+        RSRC_CONF|ACCESS_CONF,
+        "SCSS include paths"
+    ),
     {NULL}
 };
 
+void* make_config(apr_pool_t* pool, char* dir) {
+    Config* config = apr_pcalloc(pool, sizeof(Config));
+    config->include_path = "";
+    return (void*)config;
+}
+
+void* merge_config(apr_pool_t* pool, void* _unused_baseConfig, void* overrideConfig) {
+    Config* override = (Config*)overrideConfig;
+
+    Config* result = apr_pcalloc(pool, sizeof(Config));
+    result->include_path = override->include_path;
+    return result;
+}
+
 module AP_MODULE_DECLARE_DATA sass_module = {
     STANDARD20_MODULE_STUFF,
-    0,
-    0,
+    make_config,
+    merge_config,
     0,
     0,
     command_recs,
