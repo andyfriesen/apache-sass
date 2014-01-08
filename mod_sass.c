@@ -15,22 +15,6 @@ typedef struct _Config {
     char* include_path;
 } Config;
 
-apr_pool_t* pool = NULL;
-
-apr_pool_t* getPool() {
-    if (pool == NULL) {
-        apr_pool_create(&pool, NULL);
-    }
-    return pool;
-}
-
-void clearPool() {
-    if (pool != NULL) {
-        apr_pool_destroy(pool);
-        pool = NULL;
-    }
-}
-
 int exists(const char* filename) {
     FILE* f;
     if (f = fopen(filename, "r")) {
@@ -41,7 +25,18 @@ int exists(const char* filename) {
 }
 
 static int sass_handler(request_rec* r) {
-    if (0 != apr_strnatcasecmp(r->handler, "sass")) {
+    char* filename = apr_pstrdup(r->pool, r->canonical_filename);
+    const int len = strlen(filename);
+    int is_css = 0;
+
+    if (len > 4) {
+        const char* last4 = filename + len - 4;
+        if (0 == apr_strnatcasecmp(last4, ".css")) {
+            is_css = 1;
+        }
+    }
+
+    if (!is_css && 0 != apr_strnatcasecmp(r->handler, "sass")) {
         return DECLINED;
     }
 
@@ -51,22 +46,13 @@ static int sass_handler(request_rec* r) {
 
     Config* config = ap_get_module_config(r->per_dir_config, &sass_module);
 
-    size_t len = strlen(r->filename);
-    char* filename = apr_palloc(getPool(), len + 1);
-    strcpy(filename, r->filename);
-    filename[len] = 0;
+    if (is_css) {
+        filename = apr_psprintf(r->pool, "%.*s.scss", len - 4, filename);
 
-    if (len > 4) {
-        const char* last4 = r->filename + len - 4;
-
-        if (0 == apr_strnatcasecmp(".css", last4)) {
-            strcpy(filename + len - 4, ".scss\0");
-
-            if (!exists(filename)) {
-                // Requested a .css file which has no corresponding .scss
-                // The request will either produce the css file itself it exists, else 404.
-                return DECLINED;
-            }
+        if (!exists(filename)) {
+            // Requested a .css file which has no corresponding .scss
+            // The request will either produce the css file itself it exists, else 404.
+            return DECLINED;
         }
     }
 
@@ -74,10 +60,8 @@ static int sass_handler(request_rec* r) {
     ctx->input_path = filename;
     ctx->options.output_style = SASS_STYLE_EXPANDED;
     ctx->options.source_comments = SASS_SOURCE_COMMENTS_DEFAULT;
-    ctx->options.include_paths = apr_pstrdup(getPool(), config->include_path);
+    ctx->options.include_paths = apr_pstrdup(r->pool, config->include_path);
     ctx->options.image_path = ".";
-
-    ap_rprintf(r, "path: %s\n", config->include_path);
 
     sass_compile_file(ctx);
 
@@ -93,13 +77,11 @@ static int sass_handler(request_rec* r) {
 
     sass_free_file_context(ctx);
 
-    clearPool();
-
     return OK;
 }
 
 static void register_hooks(apr_pool_t* pool) {
-    ap_hook_handler(sass_handler, 0, 0, APR_HOOK_LAST);
+    ap_hook_handler(sass_handler, 0, 0, APR_HOOK_FIRST);
 }
 
 static const command_rec command_recs[] = {
